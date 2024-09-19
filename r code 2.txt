@@ -1,0 +1,76 @@
+# Install and load necessary packages
+install.packages("tm")
+install.packages("SnowballC")
+install.packages("wordcloud")
+install.packages("RColorBrewer")
+install.packages("syuzhet")
+install.packages("dplyr")
+install.packages("ggplot2")
+
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(RColorBrewer)
+library(syuzhet)
+library(dplyr)
+library(ggplot2)
+
+# Introduction: Natural Language Processing (NLP) using R
+# NLP is a crucial aspect of AI that enables computers to process and understand human language.
+# With the growing amount of text data, NLP tools in R help extract valuable insights.
+# This script showcases the application of NLP in analyzing customer reviews.
+
+# Step 1: Load the dataset (Ensure the correct file path)
+reviews <- read.csv("D:/Documents/BBA college/sem 5/reviews.csv", stringsAsFactors = FALSE)
+
+# Step 2: Filter Reviews with Verified Purchase
+verified_reviews <- reviews %>% filter(verifiedpurchase == "Yes")
+
+# Step 3: Data Preprocessing
+# Convert reviews to a text corpus
+corpus <- Corpus(VectorSource(verified_reviews$reviews))
+
+# Clean the text data
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, stemDocument)
+
+# Step 4: Create a Word Cloud
+wordcloud(corpus, max.words = 100, random.order = FALSE, colors = brewer.pal(8, "Dark2"))
+
+# Step 5: Sentiment Analysis
+# Perform sentiment analysis on the verified reviews
+sentiments <- get_nrc_sentiment(verified_reviews$reviews)
+
+# Summarize the sentiment data
+sentiment_summary <- colSums(sentiments)
+print(sentiment_summary)
+
+# Plot sentiment distribution
+png("sentiment_distribution_verified.png")
+barplot(sort(sentiment_summary), horiz = TRUE, cex.names = 0.7, las = 1, col = rainbow(10),
+        main = "Sentiment Distribution (Verified Purchases)", xlab = "Count")
+dev.off()
+
+# Step 6: Sentiment Score Analysis
+sentiment_scores <- get_sentiment(verified_reviews$reviews, method = "syuzhet")
+
+# Plot sentiment scores over time
+png("sentiment_over_time_verified.png")
+plot(sentiment_scores, type = "l", main = "Sentiment Over Time (Verified Purchases)", xlab = "Review Index", ylab = "Sentiment Score")
+dev.off()
+
+# Step 7: Generate Summary of Sentiments
+positive_reviews <- sum(sentiment_scores > 0)
+negative_reviews <- sum(sentiment_scores < 0)
+neutral_reviews <- sum(sentiment_scores == 0)
+
+summary_text <- paste("There are", positive_reviews, "positive reviews,", negative_reviews, "negative reviews, and",
+                      neutral_reviews, "neutral reviews in the dataset (verified purchases only).")
+print(summary_text)
+
+# Save the summary to a text file
+write(summary_text, file = "sentiment_summary_verified.txt")

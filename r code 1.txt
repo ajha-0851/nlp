@@ -1,0 +1,91 @@
+# Load necessary libraries
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(SnowballC)
+
+# Load the CSV file containing your reviews
+# Uncomment and set the path to your CSV file
+reviews <- read.csv("reviews.csv")  # Adjust the path accordingly
+
+# Sample Data: Uncomment if you don't have the dataset loaded
+# reviews <- data.frame(reviews = c("The product is amazing!", "Terrible quality, very disappointed.", 
+#                                   "Pretty good, but could be better.", "Absolutely love it!", 
+#                                   "Not worth the money.", "Exceeded my expectations.", 
+#                                   "I wouldn't recommend it.", "Five stars!"),
+#                       verified_purchase = c("yes", "no", "yes", "yes", "no", "yes", "no", "yes"))
+
+# Step 1: Filter for verified purchases
+verified_reviews <- reviews %>%
+  filter(verifiedpurchase == "Yes")
+
+# Step 2: Preprocess the data
+reviews_clean <- verified_reviews %>%
+  mutate(review_id = row_number()) %>%
+  unnest_tokens(word, reviews) %>%
+  anti_join(stop_words) %>%
+  mutate(word = wordStem(word))
+
+# Step 3: Sentiment Analysis
+# Using Bing sentiment lexicon
+sentiments <- get_sentiments("bing")
+
+# Step 4: Join reviews with sentiment
+review_sentiments <- reviews_clean %>%
+  inner_join(sentiments, by = "word")
+
+# Step 5: Summarize Sentiment
+sentiment_summary <- review_sentiments %>%
+  group_by(review_id) %>%
+  summarise(sentiment = sum(ifelse(sentiment == "positive", 1, -1)))
+
+# Step 6: Categorize Reviews
+categorized_reviews <- sentiment_summary %>%
+  mutate(sentiment_category = case_when(
+    sentiment > 0 ~ "Positive",
+    sentiment < 0 ~ "Negative",
+    TRUE ~ "Neutral"
+  ))
+
+# Step 7: Extract Keywords from Positive and Negative Reviews
+positive_keywords <- categorized_reviews %>%
+  filter(sentiment_category == "Positive") %>%
+  inner_join(reviews_clean, by = "review_id") %>%
+  count(word, sort = TRUE) %>%
+  top_n(5)
+
+negative_keywords <- categorized_reviews %>%
+  filter(sentiment_category == "Negative") %>%
+  inner_join(reviews_clean, by = "review_id") %>%
+  count(word, sort = TRUE) %>%
+  top_n(5)
+
+# Step 8: Create a Summary Based on Keywords
+summary_text <- paste(
+  "Customer perception of the product can be summarized as follows:",
+  "The positive feedback highlighted keywords such as:",
+  paste(positive_keywords$word, collapse = ", "), 
+  ".",
+  "On the other hand, negative reviews mentioned keywords like:",
+  paste(negative_keywords$word, collapse = ", "), 
+  ".",
+  "This suggests that customers are particularly enthusiastic about the product's",
+  positive_keywords$word[1], "and", positive_keywords$word[2], 
+  "while expressing concerns about", negative_keywords$word[1], 
+  "and", negative_keywords$word[2], "."
+)
+
+# Display the summary
+print(summary_text)
+
+# Step 9: Plot the sentiment analysis results
+ggplot(data = categorized_reviews, aes(x = sentiment_category)) +
+  geom_bar(fill = "skyblue") +
+  labs(title = "Sentiment Analysis of Verified Customer Reviews",
+       x = "Sentiment Category",
+       y = "Number of Reviews") +
+  theme_minimal()
+
+# Show the plot
+print("Plotting sentiment distribution...")
+

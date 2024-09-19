@@ -1,0 +1,49 @@
+# Install and load necessary packages
+install.packages("tidyverse")
+install.packages("tidytext")
+install.packages("textdata")
+
+library(tidyverse)
+library(tidytext)
+library(textdata)
+
+# Load your dataset
+# Replace "path_to_your_reviews.csv" and "review_column_name" with your actual file path and column name
+reviews <- read.csv("path_to_your_reviews.csv")
+
+# Tagging aspects in reviews
+reviews$aspect <- sapply(reviews$review_column_name, function(x) {
+  if (grepl("quality", x, ignore.case = TRUE)) {
+    return("quality")
+  } else if (grepl("service", x, ignore.case = TRUE)) {
+    return("service")
+  } else if (grepl("price", x, ignore.case = TRUE)) {
+    return("price")
+  } else if (grepl("delivery", x, ignore.case = TRUE)) {
+    return("delivery")
+  } else {
+    return(NA)  # Return NA if no aspect is found
+  }
+})
+
+# Text Preprocessing
+reviews_clean <- reviews %>%
+  select(reviews , aspect) %>%   # Keep review and aspect columns
+  unnest_tokens(word, reviews) %>%  # Tokenize the review text
+  anti_join(stop_words)                         # Remove stop words
+
+# Perform Aspect-Based Sentiment Analysis
+aspect_sentiment <- reviews_clean %>%
+  inner_join(get_sentiments("bing"), by = "word") %>%  # Join with sentiment data
+  group_by(aspect, sentiment) %>%                       # Group by aspect and sentiment
+  summarize(count = n(), .groups = 'drop')             # Count occurrences
+
+# View the aspect sentiment results
+print(aspect_sentiment)
+
+# Visualize Aspect-Based Sentiment
+aspect_sentiment %>%
+  ggplot(aes(x = aspect, y = count, fill = sentiment)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Aspect-Based Sentiment Analysis")
+
